@@ -2,68 +2,100 @@ import std.array;
 import std.exception;
 import std.stdio;
 
-class BoardState {
-    size_t w;
-    size_t h;
-    int[] cells;
+import util;
 
-    int* getCell(ulong x, ulong y) => &cells[y * w + x];
+struct Constraint {
+    Point[] points;
+    int count;
+}
 
-    this(size_t w, size_t h) {
-        this.w = w;
-        this.h = h;
-        cells.length = w * h;
+class Solver {
+    BoardState state;
+    Constraint[] constraints;
+    size_t[][Point] constraintsByPoints;
+    bool[Point] known;
+
+    void registerConstraint(Constraint c) {
+        size_t idx = constraints.length;
+        constraints ~= c;
+        foreach (p; c.points) {
+            constraintsByPoints[p] ~= idx;
+        }
     }
 
-    static BoardState fromSerialized(string data) {
-        auto lines = data.split('\n');
-        if (lines.length > 0 && lines[$ - 1] == "") {
-            lines.length -= 1;
-        }
-        if (lines.length == 0) {
-            return new BoardState(0, 0);
-        }
-        auto state = new BoardState(lines[0].length, lines.length);
-        foreach (y, line; lines) {
-            enforce(line.length == state.w);
-            foreach (x, c; line) {
-                switch (c) {
-                case '0': .. case '9':
-                    *state.getCell(x, y) = c - '0';
-                    break;
-                case '#':
-                    *state.getCell(x, y) = -1;
-                    break;
-                default:
-                    enforce(false);
+    private void initializeBaseConstraints() {
+        foreach(int x; 0 .. cast(int) state.w) {
+            foreach(int y; 0 .. cast(int) state.h) {
+                auto cell = *state.getCell(x, y);
+                if (cell  <= 0) {
+                    continue;
                 }
+                Constraint c;
+                c.count = cell;
+                foreach(int dx; -1 .. 2) {
+                    foreach(int dy; -1 .. 2) {
+                        if (dx == 0 && dy == 0) {
+                            continue;
+                        }
+                        auto cx = x + dx;
+                        auto cy = y + dy;
+                        if (cx < 0 || cy < 0 || cx >= state.w || cy >= state.h) {
+                            continue;
+                        }
+                        auto neighbour = *state.getCell(cx, cy);
+                        if (neighbour == EMPTY) {
+                            c.points ~= Point(cx, cy);
+                        }
+                    }
+                }
+                registerConstraint(c);
             }
         }
-        return state;
+    }
+
+    private bool solved = false;
+    void solve() {
+        enforce(!solved);
+        initializeBaseConstraints();
+        foreach (c; constraints) {
+            if (c.points.length != c.count) {
+                continue;
+            }
+            foreach (p; c.points) {
+                known[p] = true;
+            }
+        }
+        solved = true;
     }
 }
 
-string getNextMask(BoardState state) {
+
+string getNextMask(Solver solver) {
+    auto state = solver.state;
     Appender!string builder;
-    foreach (i, cell; state.cells) {
-        if (i > 0 && i % state.w == 0) {
-            builder.put('\n');
+    foreach (y; 0 .. state.h) {
+        foreach (x; 0 .. state.w) {
+            auto cell = *state.getCell(x, y);
+            switch (cell) {
+            case EMPTY:
+                builder.put(((Point(x, y) in solver.known) != null) ? '#' : '.');
+                break;
+            default:
+                builder.put(cast(char)('0' + cell));
+                break;
+            }
         }
-        switch (cell) {
-        case -1:
-            builder.put('#');
-            break;
-        default:
-            builder.put(cast(char)('0' + cell));
-            break;
-        }
+        builder.put('\n');
     }
     return builder.data;
 }
 
 string solve(string data) {
     auto state = BoardState.fromSerialized(data);
-    return state.getNextMask();
+    auto solver = new Solver;
+    solver.state = state;
+    solver.solve();
+    return solver.getNextMask();
 }
 
 void main(string[] args) {
@@ -72,7 +104,7 @@ void main(string[] args) {
 
         writeln("START");
         auto data = cast(string) read(filename);
-        writeln(solve(data));
+        writef("%s", solve(data));
         writeln("END");
     }
 }
