@@ -93,8 +93,15 @@ class Solver {
         size_t i = 1;
         while (i < constraints.length) {
             auto length1 = constraints[i].points.length;
-            // TODO: generate deduped list of indices using constraintsByPoints
-            foreach (j; 0 .. i) {
+            size_t[] idxs = [];
+            foreach (p; constraints[i].points) {
+                idxs = idxs ~ constraintsByPoints[p];
+            }
+            idxs.sort();
+            foreach (j; idxs.uniq()) {
+                if (j >= i) {
+                    break;
+                }
                 auto length2 = constraints[j].points.length;
                 if (length1 > length2) {
                     tryGenerate(constraints[i], constraints[j]);
