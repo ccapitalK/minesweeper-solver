@@ -93,6 +93,16 @@ class Solver {
         size_t i = 1;
         while (i < constraints.length) {
             auto length1 = constraints[i].points.length;
+            if (length1 > 1 && constraints[i].count == length1) {
+                foreach (const p; constraints[i].points) {
+                    Constraint c;
+                    c.points ~= p;
+                    c.count = 1;
+                    registerConstraint(c);
+                }
+                ++i;
+                continue;
+            }
             size_t[] idxs = [];
             foreach (p; constraints[i].points) {
                 idxs = idxs ~ constraintsByPoints[p];
@@ -135,6 +145,7 @@ class Solver {
         initializeBaseConstraints();
         iterativeSolve();
         populateKnown();
+        // writeln("Solved after ", constraints.length, " constraints searched");
         solved = true;
     }
 }
@@ -205,4 +216,6 @@ unittest {
 
     // Constraint subset tests
     assert(solve(".....\n..1..\n11111\n") == ".$$$.\n..1..\n11111\n");
+    assert(solve(".....\n.....\n11211\n") == ".....\n$#$#$\n11211\n");
+    assert(solve(".102.\n.424.\n.....\n") == ".102#\n.424#\n###$#\n");
 }
